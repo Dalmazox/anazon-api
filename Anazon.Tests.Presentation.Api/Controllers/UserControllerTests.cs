@@ -1,196 +1,114 @@
 ﻿using Anazon.Domain.Entities;
-using Anazon.Domain.Interfaces.Services;
 using Anazon.Domain.Models.Create;
 using Anazon.Domain.Models.Update;
-using Anazon.Domain.ValueObjects;
-using Anazon.Presentation.Api.Controllers;
-using Anazon.Tests.Common;
-using Anazon.Tests.Common.FakeModel;
-using FluentValidation;
-using FluentValidation.Results;
+using Anazon.Presentation.Api;
+using Anazon.Tests.Common.Faker;
+using FluentAssertions;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Moq;
-using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Anazon.Tests.Presentation.Api.Controllers
 {
-    public class UserControllerTests
+    public class UserControllerTests : IClassFixture<CustomWebApplicationFactory<Startup>>
     {
-        private readonly Mock<IValidator<CreateUserModel>> _createUserModelValidatorMock;
-        private readonly Mock<IValidator<UpdateUserModel>> _updateUserModelValidatorMock;
-        private readonly Mock<IUserService> _userServiceMock;
+        private readonly HttpClient _client;
+        private readonly JsonSerializerOptions _serializerOptions;
 
-        public UserControllerTests()
+        public UserControllerTests(CustomWebApplicationFactory<Startup> factory)
         {
-            _createUserModelValidatorMock = new Mock<IValidator<CreateUserModel>>();
-            _updateUserModelValidatorMock = new Mock<IValidator<UpdateUserModel>>();
-            _userServiceMock = new Mock<IUserService>();
+            _client = factory.CreateClient();
+            _serializerOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         }
 
         [Fact(DisplayName = "Should return success with users list")]
-        public void ShouldReturnSuccessWithList()
+        public async Task ShouldReturnSuccessWithList()
         {
-            var fakeList = UserFakeList.Get();
-            _userServiceMock.Setup(x => x.List()).Returns(fakeList);
+            var result = await _client.GetFromJsonAsync<CustomResult<IEnumerable<User>>>("/v1/user");
 
-            var result = (new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Index() as ObjectResult).Value as Result;
-
-            Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
-            Assert.Equal(fakeList.Count(), (result.Data as IEnumerable<User>).Count());
-            _userServiceMock.Verify(x => x.List(), Times.Once);
-        }
-
-        [Fact(DisplayName = "Should handle any error on listing users")]
-        public void ShouldHandleErrorsOnListing()
-        {
-            var customMessage = "Custom exception";
-            var customException = new Exception(customMessage);
-
-            _userServiceMock.Setup(x => x.List()).Throws(customException);
-
-            var result = (new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Index() as ObjectResult).Value as Result;
-
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal(customMessage, result.Message);
-            Assert.Equal(customException.InnerException, result.Data);
-            _userServiceMock.Verify(x => x.List(), Times.Once);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status200OK);
+            result.Data.Should().HaveCountGreaterThan(0);
         }
 
         [Fact(DisplayName = "Should return success on storing user")]
-        public void ShouldReturnSuccessOnStore()
+        public async Task ShouldReturnSuccessOnStore()
         {
-            var fakeUser = CreateUserFakeModel.Get();
+            var fakeUser = UserFaker.GetCreateModel();
 
-            _userServiceMock.Setup(x => x.Store(It.IsAny<User>())).Returns(true);
+            var httpResponse = await _client.PostAsJsonAsync("/v1/user", fakeUser);
+            var json = await httpResponse.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<CustomResult<object>>(json, _serializerOptions);
 
-            _createUserModelValidatorMock.Setup(x => x.Validate(It.IsAny<CreateUserModel>())).Returns(new ValidationResult());
-
-            var result = (new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Store(fakeUser) as ObjectResult).Value as Result;
-
-            Assert.Equal(StatusCodes.Status201Created, result.StatusCode);
-            _createUserModelValidatorMock.Verify(x => x.Validate(It.IsAny<CreateUserModel>()), Times.Once);
-            _userServiceMock.Verify(x => x.Store(It.IsAny<User>()), Times.Once);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status201Created);
+            result.Message.Should().Be("Criado com sucesso");
         }
 
         [Fact(DisplayName = "Should return store validation error on required props empty")]
-        public void ShouldReturnValidationErrorOnStore()
+        public async Task ShouldReturnValidationErrorOnStore()
         {
-            var validationResult = new ValidationResult(new List<ValidationFailure> { new ValidationFailure("Name", "Nome inválido") });
+            var fakeUser = new CreateUserModel();
 
-            _createUserModelValidatorMock.Setup(x => x.Validate(It.IsAny<CreateUserModel>())).Returns(validationResult);
+            var httpResponse = await _client.PostAsJsonAsync("/v1/user", fakeUser);
+            var json = await httpResponse.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<CustomResult<IEnumerable>>(json, _serializerOptions);
 
-            var controllerResult = (new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Store(It.IsAny<CreateUserModel>()) as ObjectResult);
-            var result = controllerResult.Value as Result;
-
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal("Corpo da requisição inválido", result.Message);
-            Assert.NotNull(result.Data);
-            _createUserModelValidatorMock.Verify(x => x.Validate(It.IsAny<CreateUserModel>()), Times.Once);
-            _userServiceMock.Verify(x => x.Store(It.IsAny<User>()), Times.Never);
-        }
-
-        [Fact(DisplayName = "Should handle any error on storing user")]
-        public void ShouldHandleErrorsOnStore()
-        {
-            var customMessage = "Custom exception";
-            var customException = new Exception(customMessage);
-            var fakeUser = CreateUserFakeModel.Get();
-
-            _createUserModelValidatorMock.Setup(x => x.Validate(It.IsAny<CreateUserModel>())).Returns(new ValidationResult());
-            _userServiceMock.Setup(x => x.Store(It.IsAny<User>())).Throws(customException);
-
-            var result = (new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Store(fakeUser) as ObjectResult).Value as Result;
-
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal(customMessage, result.Message);
-            Assert.Equal(customException.InnerException, result.Data);
-            _createUserModelValidatorMock.Verify(x => x.Validate(It.IsAny<CreateUserModel>()), Times.Once);
-            _userServiceMock.Verify(x => x.Store(It.IsAny<User>()), Times.Once);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            result.Message.Should().Be("Corpo da requisição inválido");
+            result.Data.Should().HaveCountGreaterThan(0);
         }
 
         [Fact(DisplayName = "Should return success on updating user")]
-        public void ShouldReturnSuccessOnUpdate()
+        public async Task ShouldReturnSuccessOnUpdate()
         {
-            _userServiceMock.Setup(x => x.Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>())).Returns(true);
+            var id = UserFaker.GetList().First().Id;
+            var fakeUser = UserFaker.GetCreateModel();
 
-            _updateUserModelValidatorMock.Setup(x => x.Validate(It.IsAny<UpdateUserModel>())).Returns(new ValidationResult());
+            var httpResponse = await _client.PutAsJsonAsync($"/v1/user/{id}", fakeUser);
+            var json = await httpResponse.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<CustomResult<object>>(json, _serializerOptions);
 
-            var controllerResult = new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()) as ObjectResult;
-            var result = controllerResult.Value as Result;
-
-            Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
-            _updateUserModelValidatorMock.Verify(x => x.Validate(It.IsAny<UpdateUserModel>()), Times.Once);
-            _userServiceMock.Verify(x => x.Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()), Times.Once);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status200OK);
+            result.Message.Should().Be("Sucesso na requisição");
         }
 
         [Fact(DisplayName = "Should return update validation error on required props empty")]
-        public void ShouldReturnValidationErrorOnUpdate()
+        public async Task ShouldReturnValidationErrorOnUpdate()
         {
-            var validationResult = new ValidationResult(new List<ValidationFailure> { new ValidationFailure("Name", "Nome inválido") });
+            var id = UserFaker.GetList().First().Id;
+            var fakeUser = new UpdateUserModel();
 
-            _updateUserModelValidatorMock.Setup(x => x.Validate(It.IsAny<UpdateUserModel>())).Returns(validationResult);
+            var httpResponse = await _client.PutAsJsonAsync($"/v1/user/{id}", fakeUser);
+            var json = await httpResponse.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<CustomResult<IEnumerable>>(json, _serializerOptions);
 
-            var controllerResult = new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()) as ObjectResult;
-            var result = controllerResult.Value as Result;
-
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal("Corpo da requisição inválido", result.Message);
-            Assert.NotNull(result.Data);
-            _updateUserModelValidatorMock.Verify(x => x.Validate(It.IsAny<UpdateUserModel>()), Times.Once);
-            _userServiceMock.Verify(x => x.Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()), Times.Never);
-        }
-
-        [Fact(DisplayName = "Should handle any error on updating user")]
-        public void ShouldHandleErrorsOnUpdate()
-        {
-            var customMessage = "Custom exception";
-            var customException = new Exception(customMessage);
-            var fakeUser = CreateUserFakeModel.Get();
-
-            _updateUserModelValidatorMock.Setup(x => x.Validate(It.IsAny<UpdateUserModel>())).Returns(new ValidationResult());
-            _userServiceMock.Setup(x => x.Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>())).Throws(customException);
-
-            var controllerResult = new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()) as ObjectResult;
-            var result = controllerResult.Value as Result;
-
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal(customMessage, result.Message);
-            Assert.Equal(customException.InnerException, result.Data);
-            _updateUserModelValidatorMock.Verify(x => x.Validate(It.IsAny<UpdateUserModel>()), Times.Once);
-            _userServiceMock.Verify(x => x.Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()), Times.Once);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            result.Message.Should().Be("Corpo da requisição inválido");
+            result.Data.Should().HaveCountGreaterThan(0);
         }
 
         [Fact(DisplayName = "Should return success on inactivating user")]
-        public void ShouldReturnSuccessOnInactivating()
+        public async Task ShouldReturnSuccessOnInactivating()
         {
-            _userServiceMock.Setup(x => x.Inactivate(It.IsAny<Guid>())).Returns(true);
+            var id = UserFaker.GetList().First().Id;
 
-            var controllerResult = new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Inactivate(It.IsAny<Guid>()) as ObjectResult;
-            var result = controllerResult.Value as Result;
+            var httpResponse = await _client.PostAsync($"/v1/user/{id}/inactivate", null);
+            var json = await httpResponse.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<CustomResult<object>>(json, _serializerOptions);
 
-            Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
-            _userServiceMock.Verify(x => x.Inactivate(It.IsAny<Guid>()), Times.Once);
-        }
-
-        [Fact(DisplayName = "Should handle any error on inactivating user")]
-        public void ShouldHandleErrorsOnInactivating()
-        {
-            var customMessage = "Custom exception";
-            var customException = new Exception(customMessage);
-
-            _userServiceMock.Setup(x => x.Inactivate(It.IsAny<Guid>())).Throws(customException);
-
-            var controllerResult = new UserController(_createUserModelValidatorMock.Object, _updateUserModelValidatorMock.Object, _userServiceMock.Object).Inactivate(It.IsAny<Guid>()) as ObjectResult;
-            var result = controllerResult.Value as Result;
-
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal(customMessage, result.Message);
-            Assert.Equal(customException.InnerException, result.Data);
-            _userServiceMock.Verify(x => x.Inactivate(It.IsAny<Guid>()), Times.Once);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status200OK);
+            result.Message.Should().Be("Sucesso na requisição");
         }
     }
 }

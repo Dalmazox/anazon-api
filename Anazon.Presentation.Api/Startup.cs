@@ -44,6 +44,8 @@ namespace Anazon.Presentation.Api
                 app.UseDeveloperExceptionPage();
             }
 
+            app.UseCustomException();
+
             app.UseRouting();
 
             app.UseAuthorization();
