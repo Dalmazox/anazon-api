@@ -1,5 +1,6 @@
 ﻿using Anazon.Application.Helpers;
 using Anazon.Domain.ValueObjects;
+using FluentAssertions;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -16,8 +17,9 @@ namespace Anazon.Tests.Application.Helpers
         {
             var result = (ResultHelper.Success() as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
-            Assert.Equal("Sucesso na requisição", result.Message);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status200OK);
+            result.Message.Should().Be("Sucesso na requisição");
         }
 
         [Fact(DisplayName = "Should generate success return with data")]
@@ -26,9 +28,10 @@ namespace Anazon.Tests.Application.Helpers
             var customData = new { Date = DateTime.Now };
             var result = (ResultHelper.Success(customData) as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
-            Assert.Equal("Sucesso na requisição", result.Message);
-            Assert.Equal(customData, result.Data);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status200OK);
+            result.Message.Should().Be("Sucesso na requisição");
+            result.Data.Should().BeEquivalentTo(customData);
         }
 
         [Fact(DisplayName = "Should generate success return with custom message")]
@@ -38,9 +41,10 @@ namespace Anazon.Tests.Application.Helpers
             var customMessage = "Custom success return message";
             var result = (ResultHelper.Success(customData, customMessage) as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
-            Assert.Equal(customMessage, result.Message);
-            Assert.Equal(customData, result.Data);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status200OK);
+            result.Message.Should().Be(customMessage);
+            result.Data.Should().BeEquivalentTo(customData);
         }
 
         [Fact(DisplayName = "Should generate error return")]
@@ -49,9 +53,10 @@ namespace Anazon.Tests.Application.Helpers
             var customException = new Exception("Any exception");
             var result = (ResultHelper.Error(customException) as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal(customException.Message, result.Message);
-            Assert.Equal(customException.InnerException, result.Data);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            result.Message.Should().Be(customException.Message);
+            result.Data.Should().BeEquivalentTo(customException.InnerException);
         }
 
         [Fact(DisplayName = "Should generate validation error return")]
@@ -60,9 +65,10 @@ namespace Anazon.Tests.Application.Helpers
             var validationResult = new ValidationResult(new List<ValidationFailure> { new ValidationFailure("Property", "Error message") });
             var result = (ResultHelper.ValidationError(validationResult) as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
-            Assert.Equal("Corpo da requisição inválido", result.Message);
-            Assert.NotNull(result.Data);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            result.Message.Should().Be("Corpo da requisição inválido");
+            result.Data.Should().NotBeNull();
         }
 
         [Fact(DisplayName = "Should generate created status return")]
@@ -70,8 +76,9 @@ namespace Anazon.Tests.Application.Helpers
         {
             var result = (ResultHelper.Created() as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status201Created, result.StatusCode);
-            Assert.Equal("Criado com sucesso", result.Message);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status201Created);
+            result.Message.Should().Be("Criado com sucesso");
         }
 
         [Fact(DisplayName = "Should generate created status return with data")]
@@ -80,9 +87,10 @@ namespace Anazon.Tests.Application.Helpers
             var customData = new { Date = DateTime.Now };
             var result = (ResultHelper.Created(customData) as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status201Created, result.StatusCode);
-            Assert.Equal("Criado com sucesso", result.Message);
-            Assert.Equal(customData, result.Data);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status201Created);
+            result.Message.Should().Be("Criado com sucesso");
+            result.Data.Should().BeEquivalentTo(customData);
         }
 
         [Fact(DisplayName = "Should generate created status return with custom message")]
@@ -92,9 +100,10 @@ namespace Anazon.Tests.Application.Helpers
             var customMessage = "Custom created status return message";
             var result = (ResultHelper.Created(customData, customMessage) as ObjectResult).Value as Result;
 
-            Assert.Equal(StatusCodes.Status201Created, result.StatusCode);
-            Assert.Equal(customMessage, result.Message);
-            Assert.Equal(customData, result.Data);
+            result.Should().NotBeNull();
+            result.StatusCode.Should().Be(StatusCodes.Status201Created);
+            result.Message.Should().Be(customMessage);
+            result.Data.Should().BeEquivalentTo(customData);
         }
     }
 }

@@ -28,71 +28,43 @@ namespace Anazon.Presentation.Api.Controllers
         [HttpGet]
         public IActionResult Index()
         {
-            try
-            {
-                var usersList = _usuarioService.List();
+            var usersList = _usuarioService.List();
 
-                return ResultHelper.Success(usersList);
-            }
-            catch (Exception ex)
-            {
-                return ResultHelper.Error(ex);
-            }
+            return ResultHelper.Success(usersList);
         }
 
         [HttpPost]
         public IActionResult Store([FromBody] CreateUserModel model)
         {
-            try
-            {
-                var validation = _createUserModelValidator.Validate(model);
-                if (!validation.IsValid)
-                    return ResultHelper.ValidationError(validation);
+            var validation = _createUserModelValidator.Validate(model);
+            if (!validation.IsValid)
+                return ResultHelper.ValidationError(validation);
 
-                var user = CreateUserModel.Map(model);
+            var user = CreateUserModel.Map(model);
 
-                _usuarioService.Store(user);
+            _usuarioService.Store(user);
 
-                return ResultHelper.Created();
-            }
-            catch (Exception ex)
-            {
-                return ResultHelper.Error(ex);
-            }
+            return ResultHelper.Created();
         }
 
         [HttpPut, Route("{id}")]
         public IActionResult Update([FromRoute] Guid id, [FromBody] UpdateUserModel model)
         {
-            try
-            {
-                var validation = _updateUserModelValidator.Validate(model);
-                if (!validation.IsValid)
-                    return ResultHelper.ValidationError(validation);
+            var validation = _updateUserModelValidator.Validate(model);
+            if (!validation.IsValid)
+                return ResultHelper.ValidationError(validation);
 
-                _usuarioService.Update(id, model);
+            _usuarioService.Update(id, model);
 
-                return ResultHelper.Success();
-            }
-            catch (Exception ex)
-            {
-                return ResultHelper.Error(ex);
-            }
+            return ResultHelper.Success();
         }
 
         [HttpPost, Route("{id}/inactivate")]
         public IActionResult Inactivate([FromRoute] Guid id)
         {
-            try
-            {
-                _usuarioService.Inactivate(id);
+            _usuarioService.Inactivate(id);
 
-                return ResultHelper.Success();
-            }
-            catch (Exception ex)
-            {
-                return ResultHelper.Error(ex);
-            }
+            return ResultHelper.Success();
         }
     }
 }

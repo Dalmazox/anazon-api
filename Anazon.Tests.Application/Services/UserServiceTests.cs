@@ -3,8 +3,8 @@ using Anazon.Domain.Entities;
 using Anazon.Domain.Interfaces.Repositories;
 using Anazon.Domain.Interfaces.UoW;
 using Anazon.Domain.Models.Update;
-using Anazon.Tests.Common;
-using Anazon.Tests.Common.FakeModel;
+using Anazon.Tests.Common.Faker;
+using FluentAssertions;
 using Moq;
 using System;
 using System.Linq;
@@ -18,7 +18,7 @@ namespace Anazon.Tests.Application.Services
         [Fact(DisplayName = "Should list users")]
         public void ShouldListUsers()
         {
-            var fakeList = UserFakeList.Get().ToList();
+            var fakeList = UserFaker.GetList().ToList();
 
             var userRepositoryMock = new Mock<IUserRepository>();
             userRepositoryMock.Setup(x => x.List()).Returns(fakeList);
@@ -28,15 +28,14 @@ namespace Anazon.Tests.Application.Services
 
             var result = new UserService(unitOfWorkMock.Object).List();
 
-            Assert.NotNull(result);
-            Assert.Equal(fakeList.Count, result.Count());
+            result.Should().NotBeNull().And.HaveCount(fakeList.Count);
             userRepositoryMock.Verify(x => x.List(), Times.Once);
         }
 
         [Fact(DisplayName = "Should store an user")]
         public void ShouldStoreUser()
         {
-            var fakeUser = UserFakeList.Get().ToList().First();
+            var fakeUser = UserFaker.GetList().First();
 
             var userRepositoryMock = new Mock<IUserRepository>();
             userRepositoryMock.Setup(x => x.Store(It.IsAny<User>())).Returns(true);
@@ -46,14 +45,14 @@ namespace Anazon.Tests.Application.Services
 
             var inserted = new UserService(unitOfWorkMock.Object).Store(fakeUser);
 
-            Assert.True(inserted);
+            inserted.Should().BeTrue();
             userRepositoryMock.Verify(x => x.Store(It.IsAny<User>()), Times.Once);
         }
 
         [Fact(DisplayName = "Should throw an error on CPF already exists on insert")]
         public void ShoudThrowErrorOnCpfExistsOnInsert()
         {
-            var fakeUser = UserFakeList.Get().ToList().First();
+            var fakeUser = UserFaker.GetList().First();
 
             var userRepositoryMock = new Mock<IUserRepository>();
             userRepositoryMock.Setup(x => x.Find(It.IsAny<Expression<Func<User, bool>>>())).Returns(fakeUser);
@@ -61,7 +60,9 @@ namespace Anazon.Tests.Application.Services
             var unitOfWorkMock = new Mock<IUnitOfWork>();
             unitOfWorkMock.Setup(x => x.Users).Returns(userRepositoryMock.Object);
 
-            Assert.Throws<Exception>(() => new UserService(unitOfWorkMock.Object).Store(fakeUser));
+            var userService = new UserService(unitOfWorkMock.Object);
+
+            userService.Invoking(x => x.Store(fakeUser)).Should().Throw<Exception>().WithMessage("CPF em uso");
             userRepositoryMock.Verify(x => x.Find(It.IsAny<Expression<Func<User, bool>>>()), Times.Once);
             userRepositoryMock.Verify(x => x.Store(It.IsAny<User>()), Times.Never);
         }
@@ -69,7 +70,7 @@ namespace Anazon.Tests.Application.Services
         [Fact(DisplayName = "Should update an user")]
         public void ShouldUpdateUser()
         {
-            var fakeUser = UserFakeList.Get().ToList().First();
+            var fakeUser = UserFaker.GetList().First();
 
             var userRepositoryMock = new Mock<IUserRepository>();
             userRepositoryMock.Setup(x => x.Find(It.IsAny<Guid>())).Returns(fakeUser);
@@ -78,9 +79,9 @@ namespace Anazon.Tests.Application.Services
             var unitOfWorkMock = new Mock<IUnitOfWork>();
             unitOfWorkMock.Setup(x => x.Users).Returns(userRepositoryMock.Object);
 
-            var updated = new UserService(unitOfWorkMock.Object).Update(It.IsAny<Guid>(), UpdateUserFakeModel.Get());
+            var updated = new UserService(unitOfWorkMock.Object).Update(It.IsAny<Guid>(), UserFaker.GetUpdateModel());
 
-            Assert.True(updated);
+            updated.Should().BeTrue();
             userRepositoryMock.Verify(x => x.Find(It.IsAny<Guid>()), Times.Once);
             userRepositoryMock.Verify(x => x.Update(It.IsAny<User>()), Times.Once);
         }
@@ -94,7 +95,9 @@ namespace Anazon.Tests.Application.Services
             var unitOfWorkMock = new Mock<IUnitOfWork>();
             unitOfWorkMock.Setup(x => x.Users).Returns(userRepositoryMock.Object);
 
-            Assert.Throws<Exception>(() => new UserService(unitOfWorkMock.Object).Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>()));
+            var userService = new UserService(unitOfWorkMock.Object);
+
+            userService.Invoking(x => x.Update(It.IsAny<Guid>(), It.IsAny<UpdateUserModel>())).Should().Throw<Exception>().WithMessage("Usuário não encontrado");
             userRepositoryMock.Verify(x => x.Find(It.IsAny<Guid>()), Times.Once);
             userRepositoryMock.Verify(x => x.Update(It.IsAny<User>()), Times.Never);
         }
@@ -102,7 +105,7 @@ namespace Anazon.Tests.Application.Services
         [Fact(DisplayName = "Should inactivate an user")]
         public void ShouldInactivateUser()
         {
-            var fakeUser = UserFakeList.Get().ToList().First();
+            var fakeUser = UserFaker.GetList().First();
 
             var userRepositoryMock = new Mock<IUserRepository>();
             userRepositoryMock.Setup(x => x.Find(It.IsAny<Guid>())).Returns(fakeUser);
@@ -113,7 +116,7 @@ namespace Anazon.Tests.Application.Services
 
             var updated = new UserService(unitOfWorkMock.Object).Inactivate(fakeUser.Id);
 
-            Assert.True(updated);
+            updated.Should().BeTrue();
             userRepositoryMock.Verify(x => x.Find(It.IsAny<Guid>()), Times.Once);
             userRepositoryMock.Verify(x => x.Update(It.IsAny<User>()), Times.Once);
         }
@@ -121,7 +124,7 @@ namespace Anazon.Tests.Application.Services
         [Fact(DisplayName = "Should throw an error on inactivate an not founded user")]
         public void ShoudThrowErrorOnInactivateNotFoundedUser()
         {
-            var fakeUser = UserFakeList.Get().ToList().First();
+            var fakeUser = UserFaker.GetList().First();
 
             var userRepositoryMock = new Mock<IUserRepository>();
             userRepositoryMock.Setup(x => x.Find(It.IsAny<Guid>())).Returns((User)null);
@@ -129,7 +132,9 @@ namespace Anazon.Tests.Application.Services
             var unitOfWorkMock = new Mock<IUnitOfWork>();
             unitOfWorkMock.Setup(x => x.Users).Returns(userRepositoryMock.Object);
 
-            Assert.Throws<Exception>(() => new UserService(unitOfWorkMock.Object).Inactivate(fakeUser.Id));
+            var userService = new UserService(unitOfWorkMock.Object);
+
+            userService.Invoking(x => x.Inactivate(fakeUser.Id)).Should().Throw<Exception>().WithMessage("Usuário não encontrado");
             userRepositoryMock.Verify(x => x.Find(It.IsAny<Guid>()), Times.Once);
             userRepositoryMock.Verify(x => x.Update(It.IsAny<User>()), Times.Never);
         }

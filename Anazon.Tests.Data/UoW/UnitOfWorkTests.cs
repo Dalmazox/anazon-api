@@ -1,6 +1,7 @@
 ﻿using Anazon.Domain.Interfaces.Repositories;
 using Anazon.Infra.Data.Context;
 using Anazon.Infra.Data.UoW;
+using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using System;
 using Xunit;
@@ -23,8 +24,7 @@ namespace Anazon.Tests.Data.UoW
 
             using var uow = new UnitOfWork(context);
 
-            Assert.NotNull(uow.Users);
-            Assert.IsAssignableFrom<IUserRepository>(uow.Users);
+            uow.Users.Should().NotBeNull().And.BeAssignableTo<IUserRepository>();
         }
     }
 }
